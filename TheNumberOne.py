@@ -10,7 +10,7 @@ import signal
 from typing import get_type_hints
 from textwrap import dedent
 from os import listdir
-from os.path import isfile
+from os.path import isfile, sep
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class DispatcherMeta(type):
 
     def add_forward(cls, channels, callback):
         for channel in channels:
-            logger.info(f"Forward message from {channel.name} to {callback}.")
+            logger.info(f"Forward message from {channel} to {callback}.")
             if channel not in cls.__forwards__:
                 cls.__forwards__[channel] = []
             cls.__forwards__[channel].append(callback)
@@ -74,6 +74,8 @@ class DispatcherMeta(type):
     def forward(cls, *channels):
         def wrapper(callback):
             cls.add_forward(channels, callback)
+            return callback
+        return wrapper
 
 class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
     def __init__(self):
@@ -156,12 +158,15 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
             self.change_presence(game=discord.Game(name=f"{PREFIX}help", type=0))
             self.connected_ = True
             logger.info("Connected. Loading plugins...")
-            for file in filter(isfile, listdir("plugins")):
-                if file != "__init__.py" and file.endswith(".py"):
-                    logger.info(f"Load plugin '{file[:-3]}'")
-                    __import__(f"plugins.{file[:-3]}")
-                else:
-                    logger.info(f"Skip {file}")
+            try:
+                for file in  listdir("plugins"):
+                    if isfile(f"plugins{sep}{file}") and file != "__init__.py" and file.endswith(".py"):
+                        logger.info(f"Load plugin '{file[:-3]}'")
+                        __import__(f"plugins.{file[:-3]}")
+                    else:
+                        logger.info(f"Skip {file}")
+            except:
+                logger.exception(":(")
 
             logger.info("Done in %ss", (datetime.now() - self.started_).total_seconds())
             await self.purge_from(discord.utils.find(lambda chan: chan.name == "test-bot", list(self.servers)[0].channels), limit=200)

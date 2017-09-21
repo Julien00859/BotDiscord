@@ -5,17 +5,6 @@ from TheNumberOne import TheNumberOne, thenumberone
 
 logger = getLogger(__name__)
 
-@TheNumberOne.register({"test-bot"}, {"Admin Discord"}, None)
-async def eval_(message, payload):
-    try:
-        ret = eval(payload, {"thenumberone": thenumberone}, {"discord": discord, "asyncio": asyncio})
-    except Exception as ex:
-        logger.exception("Error while evaluating payload")
-        await thenumberone.send_message(message.channel, str(ex))
-    else:
-        logger.info("%s", ret)
-        await thenumberone.send_message(message.channel, ret)
-
 @TheNumberOne.register(None, {"Admin Discord"}, None)
 async def say(message, payload):
     await thenumberone.send_message(message.channel, payload)
@@ -28,3 +17,13 @@ async def sayin(message, channel_name: str, text: str):
         return
     await thenumberone.send_message(channel, text)
 
+@TheNumberOne.register({"test-bot"}, {"Admin Discord"}, None)
+async def eval_(message, payload):
+    try:
+        ret = eval(payload, {"thenumberone": thenumberone}, globals())
+    except Exception as ex:
+        logger.exception("Error while evaluating payload")
+        await thenumberone.send_message(message.channel, str(ex))
+    else:
+        logger.info("%s", ret)
+        await thenumberone.send_message(message.channel, ret)
