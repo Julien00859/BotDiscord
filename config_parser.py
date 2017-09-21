@@ -3,7 +3,7 @@
 """Configuration handler, first check environ then config file"""
 
 from datetime import timedelta
-from os import environ, sep
+from os import environ
 import logging
 from pytimeparse import parse as timeparse
 from yaml import load as yaml_load
@@ -19,7 +19,7 @@ def parse_bool(data):
 
 def parse_config():
     """Parse the environ and the config file to set options in globals"""
-    config_file = yaml_load(open(f"config.d{sep}config.yml", "r"))
+    config_file = yaml_load(open("config.yml", "r"))
     config_cast = {}
 
     for key, value in config_file.items():

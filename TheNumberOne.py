@@ -30,19 +30,24 @@ class DispatcherMeta(type):
     """Dispatcher Pattern"""
     def __new__(mcs, name, bases, attrs):
         commands = ChainMap()
+        forwards = ChainMap()
         maps = commands.maps
+        maps_fw = forwards.maps
         for base in bases:
             if isinstance(base, DispatcherMeta):
                 maps.extend(base.__commands__.maps)
+                maps_fw.extend(base.__forwards__.maps)
         attrs["__commands__"] = commands
+        attrs["__forwards__"] = forwards
         attrs["dispatcher"] = property(lambda obj: commands)
+        attrs["forwarder"] = property(lambda obj: forwards)
         cls = super().__new__(mcs, name, bases, attrs)
         return cls
 
     def set_command(cls, channels, roles, pattern, callback):
         """Register a callback"""
         cmd_name = callback.__name__.strip("_")
-        logger.info("Register command '%s' in %s usable by %s with%s for callback %s", 
+        logger.info("Register command '%s' in %s usable by %s with%s for callback %s.", 
                         cmd_name,
                         f"channels {channels}" if channels is not None else "all channels",
                         f"roles {roles}" if roles is not None else "any role",
@@ -52,12 +57,23 @@ class DispatcherMeta(type):
         cls.__commands__[cmd_name] = \
             Command(channels, roles, re.compile(pattern) if pattern else None, callback)
 
+    def add_forward(cls, channels, callback):
+        for channel in channels:
+            logger.info(f"Forward message from {channel.name} to {callback}.")
+            if channel not in cls.__forwards__:
+                cls.__forwards__[channel] = []
+            cls.__forwards__[channel].append(callback)
+
     def register(cls, channels, roles, pattern):
         """Decorator for register a command"""
         def wrapper(callback):
             cls.set_command(channels, roles, pattern, callback)
             return callback
         return wrapper
+
+    def forward(cls, *channels):
+        def wrapper(callback):
+            cls.add_forward(channels, callback)
 
 class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
     def __init__(self):
@@ -69,6 +85,12 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
         if message.author.id == self.user.id:
             return
         logger.debug(f"Message from {message.author} on {message.channel}: {message.content}")
+        for callback in self.forwarder.get(message.channel.name, []):
+            logger.info(f"Forward to '{callback}'")
+            if asyncio.iscoroutinefunction(callback):
+                await callback(message)
+            else:
+                callback(message)
         if message.content.startswith(PREFIX):
             cmd_name, *payload = message.content[1:].split(" ", 1)
         elif message.content.startswith(f"<@{self.user.id}>"):
@@ -138,6 +160,8 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
                 if file != "__init__.py" and file.endswith(".py"):
                     logger.info(f"Load plugin '{file[:-3]}'")
                     __import__(f"plugins.{file[:-3]}")
+                else:
+                    logger.info(f"Skip {file}")
 
             logger.info("Done in %ss", (datetime.now() - self.started_).total_seconds())
             await self.purge_from(discord.utils.find(lambda chan: chan.name == "test-bot", list(self.servers)[0].channels), limit=200)
@@ -190,7 +214,7 @@ def start():
     global thenumberone
     thenumberone = TheNumberOne()
     async def mainloop():
-        await thenumberone.login(TOKEN)
+        await thenumberone.login(DISCORD_TOKEN)
         await thenumberone.connect()
 
     loop = asyncio.get_event_loop()
