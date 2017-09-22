@@ -110,7 +110,7 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
             return
         
         if cmd.channels is not None and message.channel.name not in cmd.channels:
-            logger.warning(f"The command \"{cmd_name}\" is not available in the channel '{message.channels}'.")
+            logger.warning(f"The command \"{cmd_name}\" is not available in the channel '{message.channel}'.")
             await self.send_message(message.channel, f"<@{message.author.id}>, la commande \"{cmd_name}\" n'est disponible que dans les salons suivants: {cmd.channels}.")
             return
 
