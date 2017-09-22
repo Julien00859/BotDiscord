@@ -9,7 +9,7 @@ logger = getLogger(__name__)
 async def say(message, *_, text: str):
     """Fait parler le bot dans le salon courant"""
     await thenumberone.delete_message(message)
-    await thenumberone.send_message(message.channel, payload)
+    await thenumberone.send_message(message.channel, text)
 
 @TheNumberOne.register(None, {"Admin Discord"}, r"<#(?P<channel_id>[0-9]+)>\s+(?P<text>.*)")
 async def sayin(message, *_, channel_id: str, text: str):
