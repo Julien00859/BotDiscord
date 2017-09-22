@@ -13,7 +13,7 @@ async def purge_groupe():
     await thenumberone.send_message(groupe_channel, "Classes disponibles: " + ", ".join(sorted(groups.keys())))
 asyncio.ensure_future(purge_groupe())
 
-@TheNumberOne.forward("groupe")
+@TheNumberOne.forward("groupe", allow_commands=False)
 async def group_reader(message):
     new = {groups[group] for group in re.split(",\s*", message.content.upper()) if group in list(groups.keys())}
     if new:

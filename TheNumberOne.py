@@ -11,6 +11,7 @@ from typing import get_type_hints
 from textwrap import dedent
 from os import listdir
 from os.path import isfile, sep
+from inspect import getfullargspec
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +21,13 @@ def cast_using_type_hints(type_hints: dict, kwargs: dict):
     cast each kwarg with the type given by typehints
     except for None values, None in kwargs stay None
     """
-    return {key: None if value is None else type_hints[key](value)
+    return {key: value if value is None or key not in type_hints else type_hints[key](value)
             for key, value in kwargs.items()}
 
 Command = namedtuple("Command", ["channels", "roles", "regexp", "callback"])
+SubBot = namedtuple("SubBot", ["allow_commands", "callback"])
 EventType = Enum("EventType", ["MSG", "REACT-ADD", "REACT-DEL"])
+args_re = re.compile(r"\(\?P<(\S+?)>")
 
 class DispatcherMeta(type):
     """Dispatcher Pattern"""
@@ -54,15 +57,29 @@ class DispatcherMeta(type):
                         f" pattern '{pattern}'" if pattern is not None else "out pattern",
                         callback)
         
+        fap = getfullargspec(callback)
+        if len(fap.args) < 1 and not fap.varargs:
+            raise ValueError("Incorrect function signature. Function must accept at least one argument.")
+        if pattern and fap.varkw is None:
+            pargs = set(args_re.findall(pattern))
+            kwoargs = set(fap.kwonlyargs)
+            missings = pargs - kwoargs
+            if missings:
+                raise ValueError("Following pattern's named groups don't fit in function's keyword arguments: %s" % missings)
+            else:
+                unsued = kwoargs - pargs
+                if unsued:
+                    logger.warning("Unused function's arguments: %s" % unused)
+        
         cls.__commands__[cmd_name] = \
             Command(channels, roles, re.compile(pattern) if pattern else None, callback)
 
-    def add_forward(cls, channels, callback):
+    def add_forward(cls, channels, allow_commands, callback):
         for channel in channels:
             logger.info(f"Forward message from {channel} to {callback}.")
             if channel not in cls.__forwards__:
                 cls.__forwards__[channel] = []
-            cls.__forwards__[channel].append(callback)
+            cls.__forwards__[channel].append(SubBot(allow_commands, callback))
 
     def register(cls, channels, roles, pattern):
         """Decorator for register a command"""
@@ -71,9 +88,9 @@ class DispatcherMeta(type):
             return callback
         return wrapper
 
-    def forward(cls, *channels):
+    def forward(cls, *channels, allow_commands=True):
         def wrapper(callback):
-            cls.add_forward(channels, callback)
+            cls.add_forward(channels, allow_commands, callback)
             return callback
         return wrapper
 
@@ -87,12 +104,15 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
         if message.author.id == self.user.id:
             return
         logger.debug(f"Message from {message.author} on {message.channel}: {message.content}")
-        for callback in self.forwarder.get(message.channel.name, []):
-            logger.info(f"Forward to '{callback}'")
-            if asyncio.iscoroutinefunction(callback):
-                await callback(message)
+        for subbot in self.forwarder.get(message.channel.name, []):
+            logger.info(f"Forward to '{subbot.callback}'")
+            if asyncio.iscoroutinefunction(subbot.callback):
+                await subbotcallback(message)
             else:
                 callback(message)
+            if not subbot.allow_commands:
+                return
+            
         if message.content.startswith(PREFIX):
             cmd_name, *payload = message.content[1:].split(" ", 1)
         elif message.content.startswith(f"<@{self.user.id}>"):
@@ -123,7 +143,7 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
             match = cmd.regexp.match(payload)
             if not match:
                 logger.warning(f"Syntaxe error in command \"{cmd_name}\".")
-                await self.send_message(message.channel, f"<@{message.author.id}>, la commande \"{cmd_name}\" n'a pas pu être exécutée car elle répond au pattern suivant: \"{cmd.regexp.pattern}\".")
+                await self.send_message(message.channel, f"<@{message.author.id}>, la commande \"{cmd_name}\" n'a pas pu être exécutée car elle répond au pattern suivant: ```{cmd.regexp.pattern}\"```")
                 return
 
             kwargs = cast_using_type_hints(
@@ -131,18 +151,14 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
                 kwargs=match.groupdict())
             logger.debug("Dispatch to '%s' with kwargs %s", cmd.callback.__name__, kwargs)
         else:
+            kwargs = {}
             logger.debug("Dispatch to '%s' with payload '%s'", cmd.callback.__name__, payload)
 
         try:
             if asyncio.iscoroutinefunction(cmd.callback):
-                if cmd.regexp is not None:
-                    await cmd.callback(message, **kwargs)
-                else:
-                    await cmd.callback(message, payload)
-            elif cmd.regexp is not None:
-                cmd.callback(message, **kwargs)
+                await cmd.callback(message, **kwargs)
             else:
-                cmd.callback(message, payload)
+                cmd.callback(message, **kwargs)
         except Exception as exc:
             logger.exception(f"Error in dispatched command.")
             await self.send_message(message.channel, "Internal error...")
@@ -172,34 +188,43 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
             await self.purge_from(discord.utils.find(lambda chan: chan.name == "test-bot", list(self.servers)[0].channels), limit=200)
 
 @TheNumberOne.register(None, None, None)
-async def ping(message, payload):
+async def ping(message):
+    """Répond pong dans les pus bref délais"""
     await thenumberone.send_message(message.channel, "Pong !")
 
 
 @TheNumberOne.register(None, None, r"(?P<cmd_name>\S+)?")
-async def help_(message, cmd_name: str = ""):
+async def help_(message, *_, cmd_name: str = ""):
+    """Affiche la liste des commandes ou l'aide pour une commande spéficique"""
     if cmd_name:
         cmd = thenumberone.dispatcher.get(cmd_name)
         if cmd is None:
             await thenumberone.send_message(message.channel, f"<@{message.author.id}>, la commande \"{command}\" n'existe pas")
             return
+
+        if cmd.regexp.pattern:
+            fap = getfullargspec(cmd.callback)
+            args = args_re.findall(cmd.regexp.pattern)
+            if fap.kwonlydefaults:
+                cli = " ".join([f"[{arg}]" if arg in fap.kwonlydefaults else f"<{arg}>" for arg in args])
+            else:
+                cli = " ".join([f"<{arg}>" for arg in args])
         
-        pattern_1 = cmd.regexp.pattern if cmd.regexp else "N/A"
-        pattern_2 = cmd.regexp.pattern if cmd.regexp else ""
-        payload = dedent(("""
-        Commande **{0}**: %s
-        Utilisable dans: {1}
-        Utilisable par: {2}
-        Pattern pour les arguments: {3}
+        payload = dedent("""
+        Commande **{0}**: {1}
+        Utilisable dans: {2}
+        Utilisable par: {3}
+        Pattern pour les arguments: {4}
         Utilisation: ```
-        {4}{0}{5}```""".format(
+        {5}{0}{6}```""".format(
             cmd_name,
+            re.sub(r"\s+", " ", cmd.callback.__doc__) if cmd.callback.__doc__ else "On a oublié de m'écrire une doc...",
             "*partout*" if cmd.channels is None else cmd.channels,
             "*tout le monde*" if cmd.roles is None else cmd.roles,
             "*N/A*" if cmd.regexp is None else f"`{cmd.regexp.pattern}`",
             PREFIX,
-            "" if cmd.regexp is None else f" {cmd.regexp.pattern}"
-        ) % (re.sub(r"\s+", " ", cmd.callback.__doc__) if cmd.callback.__doc__ else "<@!87605725857058816> a oublié de m'écrire une doc..."))[1:])
+            "" if cmd.regexp is None else " " + cli
+        )[1:])
         await thenumberone.send_message(message.channel, payload)
     else:
         await thenumberone.send_message(message.channel, "Commandes disponibles: " + " ".join(thenumberone.dispatcher.keys()))

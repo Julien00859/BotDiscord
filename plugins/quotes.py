@@ -31,7 +31,7 @@ async def get_quotes():
 asyncio.ensure_future(get_quotes())
 
 @TheNumberOne.register(None, None, r"(?P<author>.*)?")
-async def quote(message, author: str = ""):
+async def quote(message, *_, author: str = ""):
     """Affiche une citation au hazard ou pour un auteur donné"""
 
     global dayly_timer, twenty_timer
