@@ -4,5 +4,5 @@ services:
     build:
       context: ./
     environment:
-      - DOCKER_TOKEN=${DOCKER_TOKEN}
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
 
