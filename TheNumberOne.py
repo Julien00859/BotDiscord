@@ -107,9 +107,9 @@ class TheNumberOne(discord.Client, metaclass=DispatcherMeta):
         for subbot in self.forwarder.get(message.channel.name, []):
             logger.info(f"Forward to '{subbot.callback}'")
             if asyncio.iscoroutinefunction(subbot.callback):
-                await subbotcallback(message)
+                await subbot.callback(message)
             else:
-                callback(message)
+                subbot.callback(message)
             if not subbot.allow_commands:
                 return
             
