@@ -23,7 +23,7 @@
 	},
 	{
 		"author": "Bouterfa",
-		"text": "le prof demande a un eleve de calculer U dans un circuit a un eleve et commence a compter jusqu'a 10, \"un..., deux,... ...!\""
+		"text": "le prof demande a un eleve de calculer U dans un circuit et commence a compter jusqu'a 10, \"un..., deux,... ...!\""
 	},
 	{
 		"author": "Bouterfa",
@@ -63,6 +63,14 @@
 	},
 	{
 		"author": "Bouterfa",
-		"text": "ce matin je me suis lever et j'ai regarder dehors et j'ai vu un beau soleil bleu!"
+		"text": "ce matin je me suis levé et j'ai regardé dehors et j'ai vu un beau soleil bleu!"
+	},
+	{
+		"author": "Bouterfa",
+		"text": "Vous vous levez, Loi d'Ohm. Vous allez vous couchez, loi d'Ohm"
+	},
+	{
+		"author":"Bouterfa",
+		"text": "Si tu doutes, utilises min max, ça marche toujours"
 	}
 ]

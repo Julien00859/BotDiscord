@@ -24,7 +24,7 @@ async def group_reader(message):
     if new:
         old = (set(groups.values()) | {class_1T}) & set(message.author.roles)
         logger.info(f"Change groups of {message.author} from {old} to {new}")
-        await thenumberone.send_message(message.channel, "Les groupes de {} ont changé de: [{}] à: [{}]".format(message.author.name, ", ".join(map(attrgetter("name"), old)), ", ".join(map(attrgetter("name"), new))))
+        await thenumberone.send_message(message.channel, "Les groupes de {} ont changé de: [{}] à: [{}]. N'oubliez pas de mettre votre prénom et nom en pseudo sur le serveur !".format(message.author.name, ", ".join(map(attrgetter("name"), old)), ", ".join(map(attrgetter("name"), new))))
         await asyncio.sleep(0.2)
         await thenumberone.remove_roles(message.author, *old)
         await asyncio.sleep(0.2)
