@@ -8,7 +8,7 @@ from operator import attrgetter
 logger = getLogger(__name__)
 groupe_channel = discord.utils.find(lambda channel: channel.name == "groupe", list(thenumberone.servers)[0].channels)
 class_1T = discord.utils.find(lambda role: role.name == "1T", list(thenumberone.servers)[0].roles)
-groups = {role.name.casefold(): role for role in list(thenumberone.servers)[0].roles if role.name in ["1TL1", "1TL2", "1TM1", "1TM2", "2T", "3T", "Ancien"]}
+groups = {role.name.casefold(): role for role in list(thenumberone.servers)[0].roles if role.name in ["1TL1", "1TL2", "1TM1", "1TM2", "1TN1", "2T", "3T", "Ancien"]}
 
 async def purge_groupe():
     await thenumberone.purge_from(groupe_channel)
